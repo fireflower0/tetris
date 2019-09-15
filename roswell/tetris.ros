@@ -1,0 +1,14 @@
+#!/bin/sh
+#|-*- mode:lisp -*-|#
+#|
+exec ros -Q -- $0 "$@"
+|#
+
+(uiop:define-package #:tetris/roswell/tetris.ros
+  (:use #:cl))
+(in-package #:tetris/roswell/tetris.ros)
+
+(ql:quickload '(:tetris) :silent t)
+
+(defun main (&rest argv)
+  (tetris:start argv))
