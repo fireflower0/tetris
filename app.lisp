@@ -126,6 +126,7 @@
 (defconstant +piece-right+ 4)
 (defconstant +piece-dowm+ 8)
 
+;; ブロックの移動判定
 (defun move-piece (move)
   (cond ((= move +piece-left+)
          (unless (<= (+ *location-x* (get-piece-left)) 0)
@@ -168,6 +169,74 @@
                              1))
                  (return-from move-piece)))))
          (incf *location-y*))))
+
+;; ブロックを回転させる
+(defun turn-piece ()
+  (let ((piece-turn (make-array
+                     `(,*piece-width* ,*piece-height*)
+                     :initial-element 0))
+        (offset-x 0) (offset-y 0))
+    ;; 回転したブロックを生成する
+    (dotimes (y *piece-height*)
+      (dotimes (x *piece-width*)
+        (setf (aref piece-turn (- (- *piece-height* 1) y) x)
+              (aref *piece* x y))))
+    ;; 回転可能かどうかを調べる
+    (dotimes (y *piece-height*)
+      (dotimes (x *piece-width*)
+        (when (= (aref piece-turn x y) 1)
+          (setf offset-x (+ *location-x* x)
+                offset-y (+ *location-y* y))
+          (when (or (< offset-x 0)
+                    (>= offset-x *field-width*)
+                    (>= offset-y *field-height*)
+                    (and (>= offset-y 0)
+                         (= (aref *field* offset-x offset-y) 1)))
+            (return-from turn-piece)))))
+    (setf *piece* piece-turn)))
+
+;; ブロックを位置情報に従ってフィールドにコピーする
+(defun piece-to-field ()
+  (dotimes (y *piece-height*)
+    (dotimes (x *piece-width*)
+      (when (and (= (aref *piece* x y) 1)
+                 (>= (+ *location-y* y) 0))
+        (setf (aref *field* (+ *location-x* x) (+ *location-y* y))
+              (aref *piece* x y))))))
+
+;; 各行を調べ、行が埋まっている場合は行を削除する
+(defun delete-line ()
+  (let ((del-count 0))
+    (do ((y (- *field-height* 1) (- y 1))) ((= y 0))
+      (let ((line-count 0))
+        (dotimes (x *field-width*)
+          (incf line-count (aref *field* x y)))
+        ;; これより上にブロックはない
+        (when (= line-count 0) (return))
+        (when (/= line-count *field-width*) (go continue01))
+        ;; 1行削除する
+        (incf del-count)
+        (dotimes (x *field-width*)
+          (setf (aref *field* x y) 0)))
+     continue01)
+    del-count))
+
+;; 削除した行を詰める
+(defun shift-line (del-count)
+  (do ((y (- *field-height* 1) (- y 1)))
+      ((or (< y 0) (< del-count 0)))
+    (let ((line-count 0))
+      (dotimes (x *field-width*)
+        (incf line-count (aref *field* x y)))
+      (when (/= line-count 0)
+        (decf y) (go continue01))
+      (decf del-count)
+      (do ((iy y (- iy 1))) ((< iy 0))
+        (dotimes (x *field-width*)
+          (if (>= (- iy 1) 0)
+              (setf (aref *field* x iy) (aref *field* x (- iy 1)))
+              (setf (aref *field* x 0) 0)))))
+   continue01))
 
 (defun main (&rest args)
   (with-window-renderer (window renderer)
